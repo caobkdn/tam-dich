@@ -148,7 +148,7 @@ p{margin:0}
 .rem{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;font-size:15px}
 .rem input[type=checkbox]{width:20px;height:20px;accent-color:var(--seal)}
 .rem input[type=time]{border:1px solid var(--rule);background:var(--paper);border-radius:10px;padding:6px 10px;font-variant-numeric:tabular-nums}
-a.btn{display:inline-block;color:inherit}
+a.btn,label.btn{display:inline-block;color:inherit;cursor:pointer}
 
 /* tab bar */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--rule);padding:6px 8px calc(6px + env(safe-area-inset-bottom));z-index:5}
@@ -414,6 +414,9 @@ const LS = 'tamdich.v1';
 const Pref = (window.capacitorPreferences && window.capacitorPreferences.Preferences) || null;
 const LN = (window.capacitorLocalNotifications && window.capacitorLocalNotifications.LocalNotifications) || null;
 const isNative = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
+const CORE = window.capacitorExports || null;
+const FS = (isNative && CORE) ? CORE.registerPlugin('Filesystem') : null;
+const SH = (isNative && CORE) ? CORE.registerPlugin('Share') : null;
 const DEFAULT_REMINDERS = [
   {id:1, label:'Lập tâm', time:'06:00', on:true, tab:'thien', act:'', body:'Ngồi yên, theo dõi hơi thở, rồi đọc câu của ngày.'},
   {id:2, label:'Dừng lại', time:'11:30', on:true, tab:'hom-nay', act:'stop', body:'Ba hơi thở. Lúc này tâm tôi đang thế nào?'},
@@ -561,6 +564,7 @@ function viewToday(){
     </div>
   </section>
 
+  ${needsBackup() ? '<section class="card" style="margin-top:16px"><p style="font-size:15px">'+(S.settings.lastBackup ? 'Đã '+diffDays(S.settings.lastBackup, todayKey())+' ngày chưa sao lưu nhật ký.' : 'Nhật ký chưa được sao lưu lần nào.')+' Lưu một bản lên Google Drive để không bị mất.</p><div class="row actions"><button class="btn primary" data-act="drive-backup">Sao lưu lên Drive</button></div></section>' : ''}
   ${!S.settings.remindersOn && isNative ? '<section class="card" style="margin-top:16px"><p style="font-size:15px">Bật nhắc nhở để điện thoại gọi bạn về với hơi thở lúc 6:00, 11:30, 15:00, 18:00 và 21:30.</p><div class="row actions"><button class="btn primary" data-act="rem-apply">Bật nhắc nhở</button><a class="btn ghost" href="#lo-trinh" style="text-decoration:none">Đổi giờ</a></div></section>' : ''}
 
   <div class="row actions">
@@ -682,14 +686,21 @@ function viewPath(){
     <p class="small" style="margin-top:6px">Bấm vào thông báo “Dừng lại” sẽ mở ngay bài ba hơi thở; thông báo “Tỉnh thân” mở ngay trang viết buổi tối.</p>
   </section>
 
-  <h2 class="section-h">Sao lưu dữ liệu</h2>
+  <h2 class="section-h">Sao lưu lên Google Drive</h2>
   <section class="card">
-    <p style="font-size:15px">Nhật ký chỉ nằm trên điện thoại này. Cập nhật app thì vẫn giữ nguyên; gỡ app thì sẽ mất. Thỉnh thoảng hãy chép bản sao lưu và cất ở nơi an toàn (ví dụ dán vào project Kinh Dịch trên Claude).</p>
+    <p style="font-size:15px">Nhật ký nằm trên điện thoại này. Bấm <b>Sao lưu lên Drive</b>, chọn <b>Drive</b> trong bảng chia sẻ rồi bấm <b>Lưu</b>. Khi đổi máy hoặc cài lại app, bấm <b>Khôi phục từ Drive</b> và chọn file sao lưu mới nhất.</p>
+    <p class="small" style="margin-top:8px">${S.settings.lastBackup ? 'Lần sao lưu gần nhất: '+shortDate(S.settings.lastBackup)+'.' : 'Chưa sao lưu lần nào.'}</p>
     <div class="row actions">
-      <button class="btn" data-act="backup">Chép bản sao lưu</button>
-      <button class="btn ghost" data-act="restore-open">Khôi phục</button>
+      <button class="btn primary" data-act="drive-backup">Sao lưu lên Drive</button>
+      <label class="btn" for="restorefile">Khôi phục từ Drive</label>
+      <input type="file" id="restorefile" hidden>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn ghost" data-act="backup">Chép dạng chữ</button>
+      <button class="btn ghost" data-act="restore-open">Dán bản sao lưu</button>
     </div>
     <div id="backupslot"></div>
+    <p class="small" style="margin-top:12px">Ngoài ra, nếu trong Cài đặt của điện thoại đã bật Sao lưu Google, Android cũng tự sao lưu ngầm app này vào tài khoản Google của máy.</p>
   </section>
   `;
 }
@@ -816,9 +827,41 @@ async function copyJournal(){
   }
 }
 
+function needsBackup(){
+  const n = Object.keys(S.days).filter(k => hasContent(S.days[k])).length;
+  if (n < 3) return false;
+  return !S.settings.lastBackup || diffDays(S.settings.lastBackup, todayKey()) >= 7;
+}
+function backupText(){ return JSON.stringify({app:'Tâm Dịch', format:1, savedAt:new Date().toISOString(), settings:S.settings, days:S.days}); }
+async function driveBackup(){
+  await writeNow();
+  const k = todayKey();
+  if (!FS || !SH){ copyBackup(); return; }
+  try{
+    const r = await FS.writeFile({path:'TamDich-saoluu-'+k+'.json', data:backupText(), directory:'CACHE', encoding:'utf8'});
+    await SH.share({title:'Sao lưu Tâm Dịch '+shortDate(k), files:[r.uri], dialogTitle:'Chọn Drive để lưu bản sao lưu'});
+    S.settings.lastBackup = k; persistSettings(); render();
+    toast('Đã gửi bản sao lưu. Nhớ bấm Lưu trong Drive.');
+  }catch(e){
+    const m = (e && e.message) || '';
+    toast(/cancel/i.test(m) ? 'Đã hủy sao lưu.' : 'Chưa sao lưu được. '+m);
+  }
+}
+let restoreDraft = null;
+function previewRestore(text){
+  try{
+    const o = JSON.parse(text);
+    if (!o || !o.days || typeof o.days !== 'object') throw new Error('bad');
+    const n = Object.keys(o.days).length;
+    restoreDraft = text;
+    const when = o.savedAt ? new Date(o.savedAt) : null;
+    $('#backupslot').innerHTML = '<section class="card" style="margin-top:12px"><p style="font-size:15px">Bản sao lưu '+(when && !isNaN(when) ? 'ngày '+when.getDate()+'/'+(when.getMonth()+1)+'/'+when.getFullYear()+', ' : '')+'có '+n+' ngày nhật ký. Dữ liệu hiện có trên máy sẽ được thay bằng bản này.</p><div class="row actions"><button class="btn primary" data-act="restore-confirm">Khôi phục</button><button class="btn ghost" data-act="restore-cancel">Thôi</button></div></section>';
+  }catch(e){ toast('File này không phải bản sao lưu Tâm Dịch.'); }
+}
+
 async function copyBackup(){
   await writeNow();
-  const text = JSON.stringify(S);
+  const text = backupText();
   try{ await navigator.clipboard.writeText(text); toast('Đã chép bản sao lưu.'); }
   catch(e){
     $('#backupslot').innerHTML = '<p class="small" style="margin-top:10px">Không chép tự động được. Hãy chọn toàn bộ đoạn dưới đây và chép tay:</p><textarea class="copybox" id="backupbox" readonly></textarea>';
@@ -864,11 +907,16 @@ document.addEventListener('click', e => {
     case 'rem-apply': el.disabled = true; applyReminders().then(() => { render(); toast(remStatus); }); break;
     case 'rem-off': disableReminders().then(() => { render(); toast(remStatus); }); break;
     case 'backup': copyBackup(); break;
+    case 'drive-backup': driveBackup(); break;
+    case 'restore-confirm':
+      try{ applyRaw(restoreDraft); fixSettings(); writeNow(); restoreDraft = null; render(); toast('Đã khôi phục dữ liệu.'); if (S.settings.remindersOn && isNative) applyReminders().then(render); }
+      catch(e){ toast('Không khôi phục được bản này.'); }
+      break;
+    case 'restore-cancel': restoreDraft = null; $('#backupslot').innerHTML = ''; break;
     case 'restore-open': $('#backupslot').innerHTML = '<div class="qfield"><label for="restorebox">Dán bản sao lưu vào đây</label><textarea id="restorebox" class="copybox"></textarea></div><div class="row actions"><button class="btn primary" data-act="restore">Khôi phục dữ liệu</button></div><p class="small" style="margin-top:8px">Dữ liệu hiện có trên máy sẽ được thay bằng bản sao lưu.</p>'; break;
     case 'restore': {
       const v = ($('#restorebox').value || '').trim();
-      try{ applyRaw(v); fixSettings(); writeNow(); render(); toast('Đã khôi phục dữ liệu.'); }
-      catch(e){ toast('Bản sao lưu không đúng định dạng. Hãy dán lại toàn bộ.'); }
+      previewRestore(v);
       break; }
   }
 });
@@ -882,6 +930,12 @@ document.addEventListener('change', e => {
   if (el.dataset && el.dataset.act === 'read'){ S.settings.reads[el.dataset.id] = el.checked; persistSettings(); }
   if (el.dataset && el.dataset.act === 'rem-on'){ const r = S.settings.reminders.find(x => x.id === +el.dataset.id); if (r){ r.on = el.checked; persistSettings(); } }
   if (el.dataset && el.dataset.act === 'rem-time' && el.value){ const r = S.settings.reminders.find(x => x.id === +el.dataset.id); if (r){ r.time = el.value; persistSettings(); } }
+  if (el.id === 'restorefile' && el.files && el.files[0]){
+    const f = el.files[0], rd = new FileReader();
+    rd.onload = () => previewRestore(String(rd.result || ''));
+    rd.onerror = () => toast('Không đọc được file.');
+    rd.readAsText(f); el.value = '';
+  }
   if (el.id === 'start' && el.value){ S.settings.start = el.value; persistSettings(); render(); toast('Đã đổi ngày bắt đầu.'); }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#sheet').classList.contains('open')) closeSheet(); });
