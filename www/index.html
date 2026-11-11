@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tâm Dịch</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<script src="lib/capacitor.js"></script>
+<script src="lib/preferences.js"></script>
+<script src="lib/local-notifications.js"></script>
+<style>
+/* layout: one narrow column; the day drawn as a hexagram is the centrepiece; tab bar at the bottom */
+:root{
+  --paper:#eceee8;
+  --surface:#f8f9f5;
+  --ink:#1c201e;
+  --muted:#5f6862;
+  --rule:#d3d8cf;
+  --seal:#b0322a;
+  --seal-ink:#fff7f2;
+  --yin:#9aa39c;
+  --display:"Cormorant Garamond","Noto Serif",Georgia,serif;
+  --body:"Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --han:"Noto Serif TC","Songti TC","PMingLiU","Noto Serif CJK TC",serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#111513;--surface:#1a1f1c;--ink:#e6eae4;--muted:#9ba59e;--rule:#2d3530;
+    --seal:#de5e4c;--seal-ink:#1a0d0a;--yin:#55605a;color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#111513;--surface:#1a1f1c;--ink:#e6eae4;--muted:#9ba59e;--rule:#2d3530;
+  --seal:#de5e4c;--seal-ink:#1a0d0a;--yin:#55605a;color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55;-webkit-tap-highlight-color:transparent}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--seal);outline-offset:2px}
+h1,h2,h3{font-family:var(--display);font-weight:600;line-height:1.15;margin:0;text-wrap:balance}
+p{margin:0}
+.wrap{max-width:540px;margin:0 auto;padding:18px 18px 110px}
+.han{font-family:var(--han);font-weight:700}
+
+/* header */
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:18px}
+.top .date{font-size:13px;color:var(--muted);letter-spacing:.02em}
+.top h1{font-size:34px;margin-top:2px}
+.seal{display:inline-grid;place-items:center;width:46px;height:46px;border-radius:6px;background:var(--seal);color:var(--seal-ink);font-family:var(--han);font-weight:700;font-size:26px;flex:none;box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--seal-ink) 25%,transparent)}
+.stage-line{font-size:13px;color:var(--muted);margin-top:4px}
+.stage-line b{color:var(--ink);font-weight:600}
+
+/* hexagram */
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:18px}
+.hexcard{display:grid;gap:16px}
+.hex{display:flex;flex-direction:column;gap:9px}
+.line{display:grid;grid-template-columns:44% 1fr;align-items:center;gap:14px;background:none;border:0;padding:4px 0;text-align:left;border-radius:6px}
+.bar{height:15px;border-radius:2px;background:var(--ink);transition:transform .25s ease}
+.line.yin .bar{background:linear-gradient(90deg,var(--yin) 0 43%,transparent 43% 57%,var(--yin) 57% 100%)}
+.line.pop .bar{animation:pop .35s ease}
+@keyframes pop{0%{transform:scaleX(.92)}60%{transform:scaleX(1.03)}100%{transform:scaleX(1)}}
+.lab{font-size:14px;line-height:1.3}
+.lab small{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.line.yin .lab{color:var(--muted)}
+.hexname{border-top:1px solid var(--rule);padding-top:14px;display:grid;gap:4px}
+.hexname .meta{font-size:12px;color:var(--muted);letter-spacing:.04em}
+.hexname h2{font-size:28px}
+.hexname p{color:var(--muted);font-size:15px}
+.hint{font-size:13px;color:var(--muted)}
+
+/* quote */
+.quote{margin-top:16px}
+.quote .kicker{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.quote blockquote{margin:8px 0 6px;font-family:var(--display);font-size:24px;line-height:1.3;font-style:italic}
+.quote .mean{font-size:15px}
+.quote .src{font-size:13px;color:var(--muted);margin-top:6px}
+
+/* buttons */
+.row{display:flex;flex-wrap:wrap;gap:10px}
+.btn{border:1px solid var(--rule);background:var(--surface);border-radius:999px;padding:10px 16px;font-size:15px;font-weight:500}
+.btn.primary{background:var(--seal);border-color:var(--seal);color:var(--seal-ink)}
+.btn.ghost{background:transparent}
+.btn.done{border-style:dashed;color:var(--muted)}
+.btn:disabled{opacity:.45;cursor:default}
+.actions{margin-top:16px}
+.section-h{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:26px 0 10px;font-family:var(--body);font-weight:600}
+.stops{display:grid;gap:8px}
+.stop{display:flex;gap:10px;font-size:14px;align-items:baseline}
+.stop time{font-variant-numeric:tabular-nums;color:var(--muted);flex:none}
+
+/* sit */
+.ringwrap{position:relative;width:min(78vw,280px);aspect-ratio:1;margin:8px auto 18px}
+.ringwrap svg{width:100%;height:100%}
+.ringwrap .track{fill:none;stroke:var(--rule);stroke-width:5}
+.ringwrap .prog{fill:none;stroke:var(--seal);stroke-width:5;stroke-linecap:round;transition:stroke-dashoffset .3s linear}
+.clock{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--display);font-size:64px;font-weight:500;font-variant-numeric:lining-nums tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.chip{border:1px solid var(--rule);background:var(--surface);border-radius:999px;padding:7px 14px;font-size:14px}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.center{text-align:center}
+.guide{font-family:var(--display);font-size:21px;font-style:italic;line-height:1.35;text-align:center;margin:20px auto 8px;max-width:30ch}
+
+/* journal */
+.day{display:grid;gap:10px}
+.dayhead{display:flex;gap:14px;align-items:center}
+.mini{display:flex;flex-direction:column-reverse;gap:3px;width:34px;flex:none}
+.mini i{display:block;height:4px;background:var(--ink);border-radius:1px}
+.mini i.y0{background:linear-gradient(90deg,var(--yin) 0 42%,transparent 42% 58%,var(--yin) 58%)}
+.dayhead h3{font-size:21px}
+.dayhead p{font-size:13px;color:var(--muted)}
+.qa{font-size:14px;display:grid;gap:6px}
+.qa dt{color:var(--muted);font-size:12px}
+.qa dd{margin:0 0 4px;white-space:pre-wrap}
+.list{display:grid;gap:12px}
+.empty{color:var(--muted);font-size:15px;padding:8px 0}
+
+/* path */
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.stat{background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:12px 14px}
+.stat b{display:block;font-family:var(--display);font-size:34px;font-weight:600;line-height:1;font-variant-numeric:lining-nums tabular-nums}
+.stat span{font-size:13px;color:var(--muted)}
+.stage{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start}
+.stage.current{border-color:var(--seal);box-shadow:0 0 0 1px var(--seal)}
+.stage .seal{width:40px;height:40px;font-size:22px}
+.stage:not(.current) .seal{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--rule)}
+.stage h3{font-size:24px}
+.stage .when{font-size:12px;color:var(--muted);letter-spacing:.04em}
+.stage ul{margin:6px 0 0;padding-left:18px;font-size:14px}
+.stage .goal{font-size:15px;margin-top:4px}
+.pill{display:inline-block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;background:var(--seal);color:var(--seal-ink);border-radius:999px;padding:2px 8px;margin-left:6px;vertical-align:middle}
+.reads{display:grid;gap:6px;margin-top:8px}
+.reads label{display:flex;gap:8px;font-size:14px;align-items:flex-start}
+.reads input{margin-top:4px;accent-color:var(--seal)}
+.field{display:grid;gap:6px}
+.field label{font-size:13px;color:var(--muted)}
+.field input[type=date]{border:1px solid var(--rule);background:var(--surface);border-radius:10px;padding:9px 12px}
+.sync{font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--yin);flex:none}
+.dot.on{background:#3f8a63}
+.dot.err{background:var(--seal)}
+.steps{margin:6px 0 0;padding-left:18px;font-size:14px;display:grid;gap:4px}
+.small{font-size:13px;color:var(--muted)}
+
+.rems{display:grid;gap:10px}
+.rem{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;font-size:15px}
+.rem input[type=checkbox]{width:20px;height:20px;accent-color:var(--seal)}
+.rem input[type=time]{border:1px solid var(--rule);background:var(--paper);border-radius:10px;padding:6px 10px;font-variant-numeric:tabular-nums}
+a.btn{display:inline-block;color:inherit}
+
+/* tab bar */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--rule);padding:6px 8px calc(6px + env(safe-area-inset-bottom));z-index:5}
+nav.tabs .in{max-width:540px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
+nav.tabs a{display:grid;justify-items:center;gap:2px;padding:6px 0;font-size:12px;color:var(--muted);text-decoration:none;border-radius:10px}
+nav.tabs a svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6}
+nav.tabs a[aria-current="page"]{color:var(--seal);font-weight:600}
+
+/* sheet */
+.sheet{position:fixed;inset:0;z-index:10;display:none;background:color-mix(in srgb,var(--paper) 96%,transparent);overflow:auto}
+.sheet.open{display:block}
+.sheet .wrap{padding-top:28px}
+.sheet .close{position:absolute;top:14px;right:14px;border:1px solid var(--rule);background:var(--surface);border-radius:999px;width:40px;height:40px;font-size:20px;line-height:1}
+.breath{width:200px;height:200px;margin:30px auto;border-radius:50%;background:radial-gradient(circle at 50% 45%,color-mix(in srgb,var(--seal) 30%,var(--surface)),var(--surface) 70%);border:1px solid var(--rule);transform:scale(.55);transition-property:transform;transition-timing-function:ease-in-out}
+.breath.in{transform:scale(1);transition-duration:4s}
+.breath.out{transform:scale(.55);transition-duration:6s}
+.breathtext{font-family:var(--display);font-size:30px;text-align:center}
+.count{text-align:center;color:var(--muted);font-size:14px;margin-top:4px}
+.sheet h2{font-size:30px;margin-bottom:6px}
+textarea{width:100%;min-height:78px;border:1px solid var(--rule);background:var(--surface);border-radius:10px;padding:10px 12px;resize:vertical;line-height:1.45}
+.qfield{display:grid;gap:6px;margin-top:16px}
+.qfield label{font-size:15px;font-weight:500}
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:999px;font-size:14px;z-index:20;opacity:0;pointer-events:none;transition:opacity .25s;max-width:90vw;text-align:center}
+.toast.show{opacity:1}
+.copybox{width:100%;min-height:200px;font-size:13px;margin-top:10px}
+@media (prefers-reduced-motion:reduce){
+  .breath,.breath.in,.breath.out{transition:none}
+  .line.pop .bar{animation:none}
+  .ringwrap .prog{transition:none}
+}
+</style>
+</head>
+<body>
+<main class="wrap" id="view" aria-live="polite"></main>
+
+<nav class="tabs" aria-label="Chuyển màn hình">
+  <div class="in">
+    <a href="#hom-nay" data-tab="hom-nay"><svg viewBox="0 0 24 24"><path d="M5 6h14M5 10h6m2 0h6M5 14h14M5 18h6m2 0h6"/></svg>Hôm nay</a>
+    <a href="#thien" data-tab="thien"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>Ngồi thiền</a>
+    <a href="#nhat-ky" data-tab="nhat-ky"><svg viewBox="0 0 24 24"><path d="M6 4h10l2 2v14H6z"/><path d="M9 9h6M9 13h6M9 17h3"/></svg>Nhật ký</a>
+    <a href="#lo-trinh" data-tab="lo-trinh"><svg viewBox="0 0 24 24"><path d="M4 19c4 0 4-6 8-6s4-6 8-6"/><circle cx="4" cy="19" r="1.5"/><circle cx="20" cy="7" r="1.5"/></svg>Lộ trình</a>
+  </div>
+</nav>
+
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Thực hành"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* ---------- Data: the four stages ---------- */
+const STAGES = [
+  {han:'靜', name:'Tĩnh', sub:'Biết mình', trad:'Phật giáo · Osho', goal:'Thấy được tâm mình đang vận hành.',
+   practice:['Tăng thời gian ngồi dần từ 10 lên 20–30 phút.','Ghi lại những phản ứng tự động: điều gì khiến mình nổi nóng, lo âu, muốn chứng tỏ.'],
+   reads:['Phép lạ của sự tỉnh thức (Thích Nhất Hạnh)','Kinh Pháp Cú, mỗi ngày vài câu','Awareness – Tỉnh thức (Osho)'],
+   sign:'Nhận ra cảm xúc trước khi nó thành lời nói hay hành động.',
+   sit:'Thở vào, biết mình thở vào. Thở ra, biết mình thở ra. Ý nghĩ đến thì thấy nó, rồi trở về hơi thở.',
+   stopTip:'Không đè nén, không chạy theo. Chỉ thấy nó và gọi đúng tên nó.'},
+  {han:'正', name:'Chính', sub:'Tu thân', trad:'Nho giáo', goal:'Lời và việc khớp nhau; giữ mình cả khi ở một mình.',
+   practice:['Thận độc: chọn một nguyên tắc và giữ trọn 30 ngày.','Tri hành hợp nhất: mỗi tuần làm cho bằng được một điều biết là đúng.','Tề gia: mỗi tuần một việc chăm sóc thật cho người trong nhà.'],
+   reads:['Đại Học','Trung Dung','Luận Ngữ, 1–2 chương mỗi ngày','Truyền tập lục (Vương Dương Minh), trích đoạn'],
+   sign:'Người thân thấy bạn dễ tin cậy hơn.',
+   sit:'Ngồi thẳng như cây tùng, thở đều. Hỏi khẽ: hôm nay ý mình có thành không?',
+   stopTip:'Lương tri vẫn ở đó. Hỏi nó: việc đúng lúc này là gì?'},
+  {han:'順', name:'Thuận', sub:'Biết thời', trad:'Kinh Dịch · Lão Trang · Tố Thư', goal:'Bình thản trước biến đổi; biết tiến, giữ, lui đúng lúc.',
+   practice:['Trước quyết định lớn, hỏi: đây là thời gì? Nên tiến, giữ hay lui?','Một tuần vô vi: không ép, không tranh để thắng, rồi quan sát.','Mỗi tuần bỏ bớt một thứ thừa.'],
+   reads:['Đại tượng 64 quẻ, 5 quẻ mỗi tuần','Đạo Đức Kinh, 1 chương mỗi ngày','Tố Thư, 1 chương mỗi 2 tuần'],
+   sign:'Ít lo âu về kết quả; quyết định bình thản hơn.',
+   sit:'Ngồi như núi, thở như nước chảy. Không đẩy, không kéo; để mọi thứ tự lắng xuống.',
+   stopTip:'Nước gặp đá thì vòng qua. Lúc này mình có đang ép điều gì không?'},
+  {han:'愛', name:'Ái', sub:'Buông và thương', trad:'Thiên Chúa giáo · Từ bi', goal:'Mở lòng, tha thứ, phục vụ.',
+   practice:['Lectio Divina mỗi tuần một lần với một đoạn Tin Mừng.','Thiền từ bi 10 phút mỗi sáng.','Viết một lá thư tha thứ, không gửi.','Thiện nguyện mỗi tháng một lần.'],
+   reads:['Tin Mừng Mátthêu, chương 5–7','Gương Chúa Giêsu (Thomas à Kempis)','Giận (Thích Nhất Hạnh)'],
+   sign:'Ít phán xét, tha thứ nhanh hơn; thấy người khó ưa cũng đang khổ.',
+   sit:'Mong cho tôi được bình an. Mong cho người tôi thương được bình an. Mong cho cả người làm tôi khổ cũng được bình an.',
+   stopTip:'Người kia cũng đang khổ. Lòng mình có thể rộng thêm một chút không?'}
+];
+
+/* Sentences to carry, one per day, by stage */
+const QUOTES = [
+ [
+  {q:'Ý dẫn đầu các pháp, ý làm chủ, ý tạo tác.', s:'Kinh Pháp Cú, câu 1'},
+  {q:'Hận thù không dập tắt được hận thù; chỉ có tình thương mới dập tắt được hận thù.', s:'Kinh Pháp Cú, câu 5'},
+  {q:'Thở vào, tôi biết tôi đang thở vào. Thở ra, tôi biết tôi đang thở ra.', s:'Kinh Quán niệm hơi thở'},
+  {q:'Thắng ngàn quân nơi chiến trận không bằng tự thắng chính mình.', s:'Kinh Pháp Cú, câu 103 (ý)'},
+  {q:'Như núi đá vững chắc không gió nào lay; người trí không dao động giữa khen và chê.', s:'Kinh Pháp Cú, câu 81 (ý)'},
+  {q:'Không làm các điều ác, siêng làm các điều lành, giữ tâm ý trong sạch.', s:'Kinh Pháp Cú, câu 183'},
+  {q:'Bản lai vô nhất vật, hà xứ nhạ trần ai?', m:'Xưa nay vốn không một vật, bụi bám vào đâu?', s:'Lục Tổ Huệ Năng'},
+  {q:'Gia trung hữu bảo hưu tầm mịch.', m:'Trong nhà sẵn của báu, thôi đừng tìm kiếm đâu xa.', s:'Trần Nhân Tông, Cư trần lạc đạo phú'},
+  {q:'Hãy tự mình làm hòn đảo cho chính mình, tự mình nương tựa nơi chính mình.', s:'Kinh Đại Bát Niết-bàn (ý)'},
+  {q:'Nhìn ý nghĩ đi qua như mây qua bầu trời: không theo, không đuổi.', s:'Theo tinh thần Osho (diễn ý)'},
+  {q:'Tỉnh thức không phải là cố sửa, mà là thấy rõ. Điều được thấy rõ sẽ tự chuyển hóa.', s:'Theo tinh thần Osho (diễn ý)'},
+  {q:'Cư trần lạc đạo thả tùy duyên.', m:'Sống giữa cõi đời mà vui với đạo, hãy cứ tùy duyên.', s:'Trần Nhân Tông'}
+ ],
+ [
+  {q:'Đại học chi đạo, tại minh minh đức, tại thân dân, tại chỉ ư chí thiện.', m:'Đạo học lớn ở chỗ làm sáng đức sáng, thân với dân, dừng ở chỗ chí thiện.', s:'Đại Học'},
+  {q:'Ngô nhật tam tỉnh ngô thân.', m:'Mỗi ngày tôi xét mình ba điều.', s:'Luận Ngữ, Tăng Tử'},
+  {q:'Kỷ sở bất dục, vật thi ư nhân.', m:'Điều mình không muốn, đừng làm cho người.', s:'Luận Ngữ'},
+  {q:'Quân tử thận kỳ độc dã.', m:'Người quân tử giữ mình cẩn trọng cả khi ở một mình.', s:'Trung Dung'},
+  {q:'Nhất thị giai dĩ tu thân vi bản.', m:'Ai ai cũng lấy tu thân làm gốc.', s:'Đại Học'},
+  {q:'Quân tử cầu chư kỷ, tiểu nhân cầu chư nhân.', m:'Người quân tử đòi hỏi ở mình, kẻ tiểu nhân đòi hỏi ở người.', s:'Luận Ngữ'},
+  {q:'Kiến hiền tư tề yên, kiến bất hiền nhi nội tự tỉnh dã.', m:'Thấy người hiền thì mong theo kịp; thấy người không hiền thì tự xét lại mình.', s:'Luận Ngữ'},
+  {q:'Tri chi vi tri chi, bất tri vi bất tri, thị tri dã.', m:'Biết thì nói biết, không biết thì nói không biết, thế mới là biết.', s:'Luận Ngữ'},
+  {q:'Khắc kỷ phục lễ vi nhân.', m:'Thắng được mình, trở về với lễ, đó là nhân.', s:'Luận Ngữ'},
+  {q:'Trắc ẩn chi tâm, nhân chi đoan dã.', m:'Lòng thương xót là mầm của đức nhân.', s:'Mạnh Tử'},
+  {q:'Tri thị hành chi thủy, hành thị tri chi thành.', m:'Biết là khởi đầu của làm, làm là sự hoàn thành của biết.', s:'Vương Dương Minh'},
+  {q:'Phá sơn trung tặc dị, phá tâm trung tặc nan.', m:'Phá giặc trong núi thì dễ, phá giặc trong lòng mới khó.', s:'Vương Dương Minh'}
+ ],
+ [
+  {q:'Thiên hành kiện, quân tử dĩ tự cường bất tức.', m:'Trời vận hành mạnh mẽ; người quân tử tự cường không ngừng.', s:'Kinh Dịch, quẻ Càn'},
+  {q:'Địa thế khôn, quân tử dĩ hậu đức tải vật.', m:'Thế đất thuận hòa; người quân tử lấy đức dày mà chở muôn vật.', s:'Kinh Dịch, quẻ Khôn'},
+  {q:'Thượng thiện nhược thủy. Thủy thiện lợi vạn vật nhi bất tranh.', m:'Thiện cao nhất như nước: làm lợi muôn loài mà không tranh.', s:'Đạo Đức Kinh, chương 8'},
+  {q:'Tri nhân giả trí, tự tri giả minh.', m:'Hiểu người là trí, hiểu mình mới là sáng.', s:'Đạo Đức Kinh, chương 33'},
+  {q:'Tri túc giả phú.', m:'Biết đủ là giàu.', s:'Đạo Đức Kinh, chương 33'},
+  {q:'Cùng tắc biến, biến tắc thông, thông tắc cửu.', m:'Cùng thì biến, biến thì thông, thông thì lâu bền.', s:'Kinh Dịch, Hệ từ hạ'},
+  {q:'Tiềm cư bão đạo, dĩ đãi kỳ thời.', m:'Ẩn mình giữ đạo, chờ đợi thời của mình.', s:'Tố Thư'},
+  {q:'Đạo, Đức, Nhân, Nghĩa, Lễ, ngũ giả nhất thể dã.', m:'Năm điều ấy vốn là một thể.', s:'Tố Thư'},
+  {q:'Địa trung hữu sơn, Khiêm; quân tử dĩ biều đa ích quả.', m:'Núi ở trong đất là Khiêm; người quân tử bớt chỗ nhiều, bù chỗ ít.', s:'Kinh Dịch, quẻ Khiêm'},
+  {q:'Sơn thượng hữu trạch, Hàm; quân tử dĩ hư thụ nhân.', m:'Trên núi có đầm là Hàm; người quân tử để lòng trống mà đón người.', s:'Kinh Dịch, quẻ Hàm'},
+  {q:'Thiên lý chi hành, thủy ư túc hạ.', m:'Đi ngàn dặm bắt đầu từ dưới bàn chân.', s:'Đạo Đức Kinh, chương 64'},
+  {q:'Chí nhân chi dụng tâm nhược kính, bất tương bất nghênh, ứng nhi bất tàng.', m:'Bậc chí nhân dùng tâm như gương: không đưa, không đón, soi mà không giữ.', s:'Trang Tử, Ứng Đế Vương'}
+ ],
+ [
+  {q:'Phúc cho ai có tâm hồn nghèo khó, vì Nước Trời là của họ.', s:'Tin Mừng Mátthêu 5,3'},
+  {q:'Phúc cho ai xây dựng hòa bình, vì họ sẽ được gọi là con Thiên Chúa.', s:'Tin Mừng Mátthêu 5,9'},
+  {q:'Hãy yêu kẻ thù và cầu nguyện cho những người bách hại anh em.', s:'Tin Mừng Mátthêu 5,44'},
+  {q:'Sao anh thấy cọng rác trong mắt người anh em, mà cái xà trong mắt mình lại không thấy?', s:'Tin Mừng Mátthêu 7,3'},
+  {q:'Hãy học với Thầy, vì Thầy có lòng hiền hậu và khiêm nhường.', s:'Tin Mừng Mátthêu 11,29'},
+  {q:'Không phải bảy lần, mà là bảy mươi lần bảy.', s:'Tin Mừng Mátthêu 18,22'},
+  {q:'Đừng lo lắng về ngày mai; ngày mai sẽ lo cho ngày mai.', s:'Tin Mừng Mátthêu 6,34'},
+  {q:'Tình yêu thì nhẫn nhục, hiền hậu, không ghen tương, không khoe khoang, không tự đắc.', s:'Thư 1 Côrintô 13,4'},
+  {q:'Lòng chúng con khắc khoải cho đến khi được nghỉ yên trong Chúa.', s:'Thánh Augustinô, Tự thuật'},
+  {q:'Lạy Chúa, xin biến con thành khí cụ bình an của Chúa.', s:'Kinh Hòa bình'},
+  {q:'Như mẹ hiền che chở đứa con một, hãy mở lòng từ không giới hạn với muôn loài.', s:'Kinh Từ Bi (ý)'},
+  {q:'Tình yêu thật không đòi hỏi; nó là sự chia sẻ niềm vui đang đầy tràn bên trong.', s:'Theo tinh thần Osho (diễn ý)'}
+ ]
+];
+
+/* The six lines of the day, bottom to top */
+const LINES = [
+  {label:'Ngồi yên, theo dõi hơi thở', when:'Sáng'},
+  {label:'Đọc và mang theo một câu', when:'Sáng'},
+  {label:'Dừng lại lần 1', when:'Trong ngày'},
+  {label:'Dừng lại lần 2', when:'Trong ngày'},
+  {label:'Dừng lại lần 3', when:'Trong ngày'},
+  {label:'Tỉnh thân buổi tối', when:'Tối'}
+];
+const POS = ['Sơ','Nhị','Tam','Tứ','Ngũ','Thượng'];
+function haoName(i, yang){ const n = yang ? 'Cửu' : 'Lục'; return (i===0||i===5) ? POS[i]+' '+n : n+' '+POS[i]; }
+
+/* I Ching: trigrams in order Càn, Chấn, Khảm, Cấn, Khôn, Tốn, Ly, Đoài */
+const TRI = ['Càn','Chấn','Khảm','Cấn','Khôn','Tốn','Ly','Đoài'];
+const ELEM = ['Thiên','Lôi','Thủy','Sơn','Địa','Phong','Hỏa','Trạch'];
+const TRI_BY_CODE = {7:0,1:1,2:2,4:3,0:4,6:5,5:6,3:7}; // code = line1 + 2*line2 + 4*line3, yang = 1
+const KW = [ // [upper][lower]
+  [1,25,6,33,12,44,13,10],
+  [34,51,40,62,16,32,55,54],
+  [5,3,29,39,8,48,63,60],
+  [26,27,4,52,23,18,22,41],
+  [11,24,7,15,2,46,36,19],
+  [9,42,59,53,20,57,37,61],
+  [14,21,64,56,35,50,30,38],
+  [43,17,47,31,45,28,49,58]
+];
+const SHORT = ['Càn','Khôn','Truân','Mông','Nhu','Tụng','Sư','Tỷ','Tiểu Súc','Lý','Thái','Bĩ','Đồng Nhân','Đại Hữu','Khiêm','Dự','Tùy','Cổ','Lâm','Quán','Phệ Hạp','Bí','Bác','Phục','Vô Vọng','Đại Súc','Di','Đại Quá','Khảm','Ly','Hàm','Hằng','Độn','Đại Tráng','Tấn','Minh Di','Gia Nhân','Khuê','Kiển','Giải','Tổn','Ích','Quải','Cấu','Tụy','Thăng','Khốn','Tỉnh','Cách','Đỉnh','Chấn','Cấn','Tiệm','Quy Muội','Phong','Lữ','Tốn','Đoài','Hoán','Tiết','Trung Phu','Tiểu Quá','Ký Tế','Vị Tế'];
+const GIST = [
+ 'Tự cường không ngừng, như trời vận hành.',
+ 'Đất lặng và mềm, sẵn sàng đón nhận. Đức dày chở muôn vật.',
+ 'Khó khăn buổi đầu. Kiên nhẫn gây dựng từng chút.',
+ 'Còn non nớt. Khiêm tốn mà học.',
+ 'Chờ đợi trong niềm tin; nuôi mình trong lúc đợi.',
+ 'Có tranh chấp. Biết dừng giữa chừng là khôn.',
+ 'Kỷ luật và chính nghĩa thì mới vững.',
+ 'Gần gũi, kết thân bằng lòng thành.',
+ 'Tích từ điều nhỏ; sửa mình từ việc nhỏ.',
+ 'Bước đi thận trọng, giữ lễ.',
+ 'Trời đất giao hòa; thông suốt, bình an.',
+ 'Bế tắc. Giữ đức, chờ thời.',
+ 'Hòa đồng với người bằng lòng công.',
+ 'Có nhiều. Giữ khiêm thì giữ được.',
+ 'Khiêm tốn: bớt chỗ nhiều, bù chỗ ít.',
+ 'Vui hòa. Vui mà đừng mê.',
+ 'Biết theo đúng người, đúng lúc.',
+ 'Sửa cái hư hỏng đã lâu.',
+ 'Đến gần; dạy dỗ và bao dung.',
+ 'Quan sát mình và người.',
+ 'Cắn đứt vật cản; xử việc phân minh.',
+ 'Vẻ đẹp bên ngoài không thay được gốc bên trong.',
+ 'Bị bào mòn. Giữ gốc, đừng vọng động.',
+ 'Trở lại. Ánh dương bắt đầu hồi.',
+ 'Thành thật, không mong cầu sai lệch.',
+ 'Tích lớn; học người xưa để nuôi đức.',
+ 'Nuôi dưỡng: cẩn trọng lời nói, điều độ ăn uống.',
+ 'Quá mức. Đứng vững một mình không sợ.',
+ 'Hiểm nạn chồng chất. Giữ lòng tin mà vượt qua.',
+ 'Sáng tỏ; nương vào điều chính.',
+ 'Cảm ứng: để lòng trống mà đón người.',
+ 'Bền lâu, đứng vững không đổi hướng.',
+ 'Lui ẩn đúng lúc.',
+ 'Mạnh lớn. Mạnh mà giữ lễ.',
+ 'Tiến lên; tự làm sáng đức mình.',
+ 'Ánh sáng bị che. Giấu sáng mà giữ chính.',
+ 'Người nhà: lời có thực, việc có thường.',
+ 'Khác biệt. Hòa mà vẫn khác.',
+ 'Gian nan. Quay về tu đức.',
+ 'Cởi bỏ; tha lỗi cho người.',
+ 'Bớt đi: răn giận, ngăn ham muốn.',
+ 'Thêm lên: thấy điều thiện thì theo, có lỗi thì sửa.',
+ 'Quyết đoán trừ bỏ điều xấu.',
+ 'Gặp gỡ bất ngờ; cẩn trọng với cái mầm nhỏ.',
+ 'Tụ họp; chuẩn bị đề phòng.',
+ 'Đi lên dần, tích nhỏ thành lớn.',
+ 'Cùng khốn. Giữ chí, không đổi lòng.',
+ 'Giếng nước: nuôi người mà không cạn.',
+ 'Đổi mới; đúng thời thì được tin.',
+ 'Cái vạc: ngay ngắn ở vị trí, vững mệnh mình.',
+ 'Sấm động. Biết sợ mà tự xét mình.',
+ 'Dừng lại. Ý nghĩ không vượt ra ngoài chỗ của mình.',
+ 'Tiến dần, có thứ tự.',
+ 'Biết điều không bền để giữ điều lâu dài.',
+ 'Thịnh lớn. Thịnh rồi sẽ suy; giữ trung.',
+ 'Người lữ khách: khiêm cẩn nơi đất lạ.',
+ 'Thuận theo như gió: mềm mà thấm.',
+ 'Vui đẹp; cùng bạn học tập.',
+ 'Tan tác; quy tụ lòng người về điều chính.',
+ 'Tiết chế, có chừng mực.',
+ 'Lòng thành tín ở bên trong.',
+ 'Hơi quá trong việc nhỏ: khiêm, kiệm, cung.',
+ 'Đã xong. Lo trước cái họa về sau.',
+ 'Chưa xong. Thận trọng, việc còn tiếp.'
+];
+function hexOf(lines){
+  const lo = TRI_BY_CODE[lines[0] + 2*lines[1] + 4*lines[2]];
+  const up = TRI_BY_CODE[lines[3] + 2*lines[4] + 4*lines[5]];
+  const n = KW[up][lo];
+  const name = up===lo ? 'Thuần '+TRI[up] : ELEM[up]+' '+ELEM[lo]+' '+SHORT[n-1];
+  return {n, name, gist:GIST[n-1]};
+}
+
+const FEELS = ['Bình an','Giận','Sợ','Lo âu','Buồn','Ham muốn','Tự ái','Ganh tị','Chán','Mệt'];
+const ROOTS = ['Sợ mất điều gì đó','Muốn được công nhận','Muốn người khác theo ý mình','Bám vào chuyện đã qua','Lo chuyện chưa tới','So sánh với người khác','Thân thể mệt, đói, thiếu ngủ','Chưa thấy rõ'];
+const JQ = [
+  ['biet_on','Hôm nay tôi biết ơn điều gì?'],
+  ['luong_tri','Tôi đã sống thật với lương tri chưa: với người, với việc, với điều mình học?'],
+  ['goc','Phản ứng nào đến từ tham, sân, sợ hay kiêu? Gốc của nó ở đâu?'],
+  ['ngay_mai','Ngày mai tôi sửa một điều cụ thể:']
+];
+const WEEKDAY = ['Chủ nhật','Thứ Hai','Thứ Ba','Thứ Tư','Thứ Năm','Thứ Sáu','Thứ Bảy'];
+
+/* ---------- Helpers ---------- */
+const $ = (s, r=document) => r.querySelector(s);
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function keyOf(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function todayKey(){ return keyOf(new Date()); }
+function parseKey(k){ const [y,m,d] = k.split('-').map(Number); return new Date(y, m-1, d); }
+function diffDays(a, b){ return Math.round((parseKey(b) - parseKey(a)) / 86400000); }
+function fmtDate(k){ const d = parseKey(k); return WEEKDAY[d.getDay()]+', '+d.getDate()+'/'+(d.getMonth()+1)+'/'+d.getFullYear(); }
+function shortDate(k){ const d = parseKey(k); return d.getDate()+'/'+(d.getMonth()+1)+'/'+d.getFullYear(); }
+function hhmm(){ const d = new Date(); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+let toastT;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('show'), 2800); }
+
+/* ---------- State & storage (on this phone) ---------- */
+const LS = 'tamdich.v1';
+const Pref = (window.capacitorPreferences && window.capacitorPreferences.Preferences) || null;
+const LN = (window.capacitorLocalNotifications && window.capacitorLocalNotifications.LocalNotifications) || null;
+const isNative = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
+const DEFAULT_REMINDERS = [
+  {id:1, label:'Lập tâm', time:'06:00', on:true, tab:'thien', act:'', body:'Ngồi yên, theo dõi hơi thở, rồi đọc câu của ngày.'},
+  {id:2, label:'Dừng lại', time:'11:30', on:true, tab:'hom-nay', act:'stop', body:'Ba hơi thở. Lúc này tâm tôi đang thế nào?'},
+  {id:3, label:'Dừng lại', time:'15:00', on:true, tab:'hom-nay', act:'stop', body:'Ba hơi thở. Lúc này tâm tôi đang thế nào?'},
+  {id:4, label:'Dừng lại', time:'18:00', on:true, tab:'hom-nay', act:'stop', body:'Ba hơi thở. Lúc này tâm tôi đang thế nào?'},
+  {id:5, label:'Tỉnh thân', time:'21:30', on:true, tab:'hom-nay', act:'evening', body:'Nhìn lại ngày: biết ơn, lương tri, gốc rễ, và một điều sửa cho ngày mai.'}
+];
+let S = {settings:{start:null, sitMin:10, reads:{}, reminders:null, remindersOn:false}, days:{}};
+function normDay(d){
+  d = d || {};
+  const lines = Array.isArray(d.lines) ? d.lines.slice(0,6).map(x => x ? 1 : 0) : [];
+  while (lines.length < 6) lines.push(0);
+  return {lines, stops:Array.isArray(d.stops)?d.stops:[], journal:d.journal||null, sit:+d.sit||0, carry:!!d.carry, u:+d.u||0};
+}
+function applyRaw(raw){
+  const o = JSON.parse(raw);
+  if (!o || typeof o !== 'object' || !o.days) throw new Error('bad');
+  const days = {};
+  for (const k in o.days) if (/^\d{4}-\d{2}-\d{2}$/.test(k)) days[k] = normDay(o.days[k]);
+  S = {settings:{...S.settings, ...(o.settings||{})}, days};
+}
+function fixSettings(){
+  if (!S.settings.reads) S.settings.reads = {};
+  if (!Array.isArray(S.settings.reminders)) S.settings.reminders = JSON.parse(JSON.stringify(DEFAULT_REMINDERS));
+  if (!S.settings.start) S.settings.start = todayKey();
+}
+async function loadState(){
+  let raw = null;
+  try{ if (Pref){ const r = await Pref.get({key:LS}); raw = r && r.value; } }catch(e){}
+  if (!raw){ try{ raw = localStorage.getItem(LS); }catch(e){} }
+  if (raw){ try{ applyRaw(raw); }catch(e){} }
+  fixSettings();
+}
+let saveT = null;
+async function writeNow(){
+  clearTimeout(saveT); saveT = null;
+  const raw = JSON.stringify(S);
+  try{ localStorage.setItem(LS, raw); }catch(e){}
+  try{ if (Pref) await Pref.set({key:LS, value:raw}); }catch(e){}
+}
+function saveLocal(){ clearTimeout(saveT); saveT = setTimeout(writeNow, 300); }
+function getDay(k){ return S.days[k] || null; }
+function ensureDay(k){ return S.days[k] || (S.days[k] = normDay()); }
+function hasContent(d){ return d && (d.lines.some(Boolean) || d.stops.length || d.journal || d.sit); }
+function persistDay(k){ const d = S.days[k]; if (d) d.u = Date.now(); saveLocal(); }
+function persistSettings(){ saveLocal(); }
+
+/* ---------- Reminders (real Android notifications) ---------- */
+let remStatus = '';
+async function applyReminders(){
+  if (!LN || !isNative){ remStatus = 'Nhắc nhở chỉ chạy khi mở bằng app Tâm Dịch trên Android.'; return false; }
+  try{
+    let p = await LN.checkPermissions();
+    if (p.display !== 'granted') p = await LN.requestPermissions();
+    if (p.display !== 'granted'){
+      remStatus = 'Điện thoại đang chặn thông báo. Mở Cài đặt → Ứng dụng → Tâm Dịch → Thông báo và bật lên, rồi bấm lại nút bên dưới.';
+      S.settings.remindersOn = false; persistSettings(); return false;
+    }
+    try{ await LN.createChannel({id:'nhac-nho', name:'Nhắc tu tập', description:'Lời nhắc tu tập hằng ngày', importance:4, visibility:1, vibration:true}); }catch(e){}
+    const pend = await LN.getPending();
+    if (pend && pend.notifications && pend.notifications.length) await LN.cancel({notifications:pend.notifications.map(n => ({id:n.id}))});
+    const list = S.settings.reminders.filter(r => r.on && /^\d{2}:\d{2}$/.test(r.time)).map(r => {
+      const [h, m] = r.time.split(':').map(Number);
+      return {id:r.id, title:'Tâm Dịch · '+r.label, body:r.body, channelId:'nhac-nho', smallIcon:'ic_stat_tamdich', iconColor:'#B0322A',
+              schedule:{on:{hour:h, minute:m}, allowWhileIdle:true}, extra:{tab:r.tab, act:r.act}};
+    });
+    if (list.length) await LN.schedule({notifications:list});
+    S.settings.remindersOn = list.length > 0; persistSettings();
+    remStatus = list.length ? 'Đã bật '+list.length+' lời nhắc mỗi ngày.' : 'Đã tắt mọi lời nhắc.';
+    return true;
+  }catch(e){
+    remStatus = 'Chưa đặt được lời nhắc ('+(e && e.message ? e.message : 'lỗi không rõ')+').';
+    return false;
+  }
+}
+async function disableReminders(){
+  S.settings.reminders.forEach(r => r.on = false);
+  await applyReminders();
+}
+function listenNotifications(){
+  if (!LN || !isNative) return;
+  try{
+    LN.addListener('localNotificationActionPerformed', ev => {
+      const x = (ev && ev.notification && ev.notification.extra) || {};
+      if (x.tab) location.hash = x.tab;
+      if (x.act === 'stop') setTimeout(() => { audio(); startStop(); }, 350);
+      if (x.act === 'evening') setTimeout(openEvening, 350);
+    });
+  }catch(e){}
+}
+
+/* ---------- Stage maths ---------- */
+function stageInfo(k){
+  const d = Math.max(0, diffDays(S.settings.start, k));
+  const idx = Math.min(3, Math.floor(d / 91));
+  const inStage = d - idx*91;
+  return {d, idx, week:Math.min(13, Math.floor(inStage/7) + 1), done:d >= 364};
+}
+function quoteFor(k){ const s = stageInfo(k); const pool = QUOTES[s.idx]; return pool[s.d % pool.length]; }
+
+/* ---------- Views ---------- */
+function viewToday(){
+  const k = todayKey(), s = stageInfo(k), st = STAGES[s.idx];
+  const d = getDay(k) || normDay();
+  const hx = hexOf(d.lines);
+  const q = quoteFor(k);
+  const count = d.lines.reduce((a,b)=>a+b,0);
+  let lines = '';
+  for (let i = 5; i >= 0; i--){
+    const y = d.lines[i] === 1;
+    lines += '<button class="line '+(y?'yang':'yin')+'" data-act="line" data-i="'+i+'" aria-pressed="'+y+'">'+
+      '<span class="bar" aria-hidden="true"></span>'+
+      '<span class="lab"><small>'+haoName(i,y)+' · '+LINES[i].when+'</small>'+LINES[i].label+'</span></button>';
+  }
+  const stops = d.stops.length ? '<div class="stops">'+d.stops.map(x =>
+      '<div class="stop"><time>'+esc(x.t)+'</time><span><b>'+esc(x.feel)+'</b>'+(x.root && x.root!=='—' ? ' ← '+esc(x.root) : '')+(x.note ? '. '+esc(x.note) : '')+'</span></div>').join('')+'</div>'
+    : '<p class="empty">Chưa có lần dừng lại nào hôm nay.</p>';
+  return `
+  <header class="top">
+    <div>
+      <p class="date">${fmtDate(k)}</p>
+      <h1>Quẻ của ngày</h1>
+      <p class="stage-line">Chặng ${s.idx+1} · <b>${st.name}</b>, ${st.sub.toLowerCase()} · ${s.done ? 'Đã đủ một năm' : 'Tuần '+s.week+'/13'}</p>
+    </div>
+    <span class="seal" aria-label="Chặng ${st.name}">${st.han}</span>
+  </header>
+
+  <section class="card hexcard" aria-label="Sáu việc tu tập hôm nay">
+    <div class="hex">${lines}</div>
+    <div class="hexname">
+      <span class="meta">Quẻ ${hx.n} · ${count}/6 hào dương</span>
+      <h2>${hx.name}</h2>
+      <p>${hx.gist}</p>
+    </div>
+    <p class="hint">Mỗi việc làm xong biến một hào âm thành hào dương. Đủ sáu việc, ngày của bạn thành quẻ Càn. Bấm vào một hào để đánh dấu.</p>
+  </section>
+
+  <section class="quote card">
+    <p class="kicker">Câu mang theo hôm nay</p>
+    <blockquote>${esc(q.q)}</blockquote>
+    ${q.m ? '<p class="mean">'+esc(q.m)+'</p>' : ''}
+    <p class="src">${esc(q.s)}</p>
+    <div class="row actions">
+      ${d.carry ? '<button class="btn done" data-act="carry">Đã mang theo</button>' : '<button class="btn" data-act="carry">Tôi mang câu này theo</button>'}
+    </div>
+  </section>
+
+  ${!S.settings.remindersOn && isNative ? '<section class="card" style="margin-top:16px"><p style="font-size:15px">Bật nhắc nhở để điện thoại gọi bạn về với hơi thở lúc 6:00, 11:30, 15:00, 18:00 và 21:30.</p><div class="row actions"><button class="btn primary" data-act="rem-apply">Bật nhắc nhở</button><a class="btn ghost" href="#lo-trinh" style="text-decoration:none">Đổi giờ</a></div></section>' : ''}
+
+  <div class="row actions">
+    <button class="btn primary" data-act="stop">Dừng lại · 3 hơi thở</button>
+    <button class="btn" data-act="evening">${d.journal ? 'Xem lại tỉnh thân' : 'Tỉnh thân buổi tối'}</button>
+  </div>
+
+  <h2 class="section-h">Những lần dừng lại hôm nay</h2>
+  ${stops}
+  ${s.done ? '<section class="card" style="margin-top:20px"><h3>Kết năm</h3><p class="small" style="margin-top:6px">Bạn đã đi hết bốn chặng. Hãy viết một trang “Tâm pháp của tôi”: những nguyên lý bạn đã tự kiểm chứng, rồi mang đến Claude để lưu vào project.</p></section>' : ''}
+  `;
+}
+
+const T = {dur:600, left:null, endAt:0, running:false, h:null, lock:null};
+function remaining(){ return T.running ? Math.max(0, Math.round((T.endAt - Date.now())/1000)) : (T.left ?? T.dur); }
+function fmtClock(sec){ return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0'); }
+function viewSit(){
+  const s = stageInfo(todayKey()), st = STAGES[s.idx];
+  const rem = remaining(), C = 2*Math.PI*90, off = C * (rem / T.dur);
+  const chips = [5,10,15,20,30].map(m => '<button class="chip" data-act="dur" data-m="'+m+'" aria-pressed="'+(T.dur===m*60)+'" '+(T.running?'disabled':'')+'>'+m+' phút</button>').join('');
+  const label = T.running ? 'Tạm dừng' : (T.left != null && T.left < T.dur ? 'Ngồi tiếp' : 'Bắt đầu');
+  const d = getDay(todayKey());
+  return `
+  <header class="top">
+    <div><p class="date">Chặng ${s.idx+1} · ${st.name}</p><h1>Ngồi yên</h1></div>
+    <span class="seal">${st.han}</span>
+  </header>
+  <div class="ringwrap">
+    <svg viewBox="0 0 200 200" aria-hidden="true"><circle class="track" cx="100" cy="100" r="90"/><circle id="ringp" class="prog" cx="100" cy="100" r="90" stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${(C-off).toFixed(2)}" transform="rotate(-90 100 100)"/></svg>
+    <div class="clock" id="clock" role="timer">${fmtClock(rem)}</div>
+  </div>
+  <div class="chips">${chips}</div>
+  <div class="row actions" style="justify-content:center">
+    <button class="btn primary" data-act="sit">${label}</button>
+    <button class="btn ghost" data-act="sitreset" ${(!T.running && T.left==null)?'disabled':''}>Đặt lại</button>
+  </div>
+  <p class="guide">${esc(st.sit)}</p>
+  <p class="small center">Chuông sẽ ngân khi bắt đầu và khi hết giờ. Hãy để màn hình sáng; khi khóa màn hình, chuông kết thúc có thể không kêu.</p>
+  ${d && d.sit ? '<p class="small center" style="margin-top:10px">Hôm nay bạn đã ngồi '+d.sit+' phút.</p>' : ''}
+  `;
+}
+
+function viewJournal(){
+  const keys = Object.keys(S.days).filter(k => hasContent(S.days[k])).sort().reverse();
+  const items = keys.map(k => {
+    const d = S.days[k], hx = hexOf(d.lines);
+    const mini = d.lines.map(v => '<i class="'+(v?'y1':'y0')+'"></i>').join('');
+    const stops = d.stops.map(x => '<div class="stop"><time>'+esc(x.t)+'</time><span><b>'+esc(x.feel)+'</b>'+(x.root && x.root!=='—' ? ' ← '+esc(x.root) : '')+(x.note ? '. '+esc(x.note) : '')+'</span></div>').join('');
+    const j = d.journal ? '<dl class="qa">'+JQ.filter(([id]) => d.journal[id]).map(([id,q]) => '<dt>'+esc(q)+'</dt><dd>'+esc(d.journal[id])+'</dd>').join('')+'</dl>' : '';
+    return `<article class="card day">
+      <div class="dayhead"><div class="mini" aria-hidden="true">${mini}</div>
+        <div><h3>${fmtDate(k)}</h3><p>${hx.name} · ${d.lines.reduce((a,b)=>a+b,0)}/6${d.sit ? ' · ngồi '+d.sit+' phút' : ''}</p></div></div>
+      ${stops ? '<div class="stops">'+stops+'</div>' : ''}
+      ${j}
+    </article>`;
+  }).join('');
+  return `
+  <header class="top"><div><p class="date">Những ngày đã sống</p><h1>Nhật ký</h1></div></header>
+  <div class="row" style="margin-bottom:16px">
+    <button class="btn" data-act="copy" ${keys.length?'':'disabled'}>Chép 30 ngày gần nhất</button>
+  </div>
+  <p class="small" style="margin-bottom:16px">Cuối tháng, dán phần đã chép vào project “Kinh Dịch” trên Claude để cùng nhìn ra những gốc rễ cứ lặp lại.</p>
+  <div id="copyslot"></div>
+  <div class="list">${items || '<p class="empty">Chưa có ghi chép nào. Bắt đầu từ tab Hôm nay.</p>'}</div>
+  `;
+}
+
+function viewPath(){
+  const k = todayKey(), s = stageInfo(k);
+  const keys = Object.keys(S.days);
+  const practiced = keys.filter(x => S.days[x].lines.some(Boolean)).length;
+  const fullDays = keys.filter(x => S.days[x].lines.every(Boolean)).length;
+  const minutes = keys.reduce((a,x) => a + (S.days[x].sit||0), 0);
+  let streak = 0, cur = parseKey(k);
+  if (!(getDay(k) && getDay(k).lines.some(Boolean))) cur.setDate(cur.getDate()-1);
+  while (true){ const d = getDay(keyOf(cur)); if (d && d.lines.some(Boolean)){ streak++; cur.setDate(cur.getDate()-1); } else break; }
+  const stages = STAGES.map((st,i) => {
+    const reads = st.reads.map((r,j) => { const id = i+'-'+j; const on = !!S.settings.reads[id];
+      return '<label><input type="checkbox" id="read-'+id+'" data-act="read" data-id="'+id+'" '+(on?'checked':'')+'><span>'+esc(r)+'</span></label>'; }).join('');
+    return `<section class="card stage ${i===s.idx?'current':''}">
+      <span class="seal">${st.han}</span>
+      <div>
+        <p class="when">Tháng ${i*3+1}–${i*3+3} · ${esc(st.trad)}</p>
+        <h3>${st.name}: ${st.sub}${i===s.idx?'<span class="pill">Đang ở đây</span>':''}</h3>
+        <p class="goal">${esc(st.goal)}</p>
+        <ul>${st.practice.map(p => '<li>'+esc(p)+'</li>').join('')}</ul>
+        <div class="reads">${reads}</div>
+        <p class="small" style="margin-top:8px">Dấu hiệu tiến bộ: ${esc(st.sign)}</p>
+      </div>
+    </section>`;
+  }).join('');
+  return `
+  <header class="top"><div><p class="date">Tĩnh → Chính → Thuận → Ái</p><h1>Lộ trình 12 tháng</h1></div></header>
+  <div class="stats">
+    <div class="stat"><b>${practiced}</b><span>ngày đã thực hành</span></div>
+    <div class="stat"><b>${streak}</b><span>ngày liên tiếp</span></div>
+    <div class="stat"><b>${fullDays}</b><span>ngày thành quẻ Càn</span></div>
+    <div class="stat"><b>${minutes}</b><span>phút ngồi yên</span></div>
+  </div>
+  <div class="field" style="margin-top:18px">
+    <label for="start">Ngày bắt đầu lộ trình (hôm nay là ngày thứ ${s.d+1})</label>
+    <input type="date" id="start" value="${S.settings.start}" max="${k}">
+  </div>
+  <div class="list" style="margin-top:18px">${stages}</div>
+
+  <h2 class="section-h">Nhắc nhở hằng ngày</h2>
+  <section class="card">
+    <div class="rems">${S.settings.reminders.map(r => `
+      <div class="rem">
+        <input type="checkbox" id="rem-on-${r.id}" data-act="rem-on" data-id="${r.id}" ${r.on?'checked':''} aria-label="Bật lời nhắc ${esc(r.label)} lúc ${r.time}">
+        <label for="rem-on-${r.id}">${esc(r.label)}</label>
+        <input type="time" id="rem-t-${r.id}" data-act="rem-time" data-id="${r.id}" value="${r.time}" aria-label="Giờ nhắc ${esc(r.label)}">
+      </div>`).join('')}</div>
+    <div class="row actions">
+      <button class="btn primary" data-act="rem-apply">${S.settings.remindersOn ? 'Lưu giờ nhắc' : 'Bật nhắc nhở'}</button>
+      ${S.settings.remindersOn ? '<button class="btn ghost" data-act="rem-off">Tắt tất cả</button>' : ''}
+    </div>
+    <p class="small" id="remstatus" style="margin-top:10px">${esc(remStatus || (S.settings.remindersOn ? 'Lời nhắc đang bật. Đổi giờ xong nhớ bấm “Lưu giờ nhắc”.' : 'Chưa bật nhắc nhở.'))}</p>
+    <p class="small" style="margin-top:6px">Bấm vào thông báo “Dừng lại” sẽ mở ngay bài ba hơi thở; thông báo “Tỉnh thân” mở ngay trang viết buổi tối.</p>
+  </section>
+
+  <h2 class="section-h">Sao lưu dữ liệu</h2>
+  <section class="card">
+    <p style="font-size:15px">Nhật ký chỉ nằm trên điện thoại này. Cập nhật app thì vẫn giữ nguyên; gỡ app thì sẽ mất. Thỉnh thoảng hãy chép bản sao lưu và cất ở nơi an toàn (ví dụ dán vào project Kinh Dịch trên Claude).</p>
+    <div class="row actions">
+      <button class="btn" data-act="backup">Chép bản sao lưu</button>
+      <button class="btn ghost" data-act="restore-open">Khôi phục</button>
+    </div>
+    <div id="backupslot"></div>
+  </section>
+  `;
+}
+
+/* ---------- Sheets: Dừng lại & Tỉnh thân ---------- */
+let breathTimers = [], stopDraft = null;
+function openSheet(html){ const sh = $('#sheet'); sh.innerHTML = '<div class="wrap">'+html+'</div><button class="close" data-act="close" aria-label="Đóng">×</button>'; sh.classList.add('open'); document.body.style.overflow = 'hidden'; const f = sh.querySelector('button,textarea'); if (f) f.focus(); }
+function closeSheet(){ breathTimers.forEach(clearTimeout); breathTimers = []; stopDraft = null; $('#sheet').classList.remove('open'); $('#sheet').innerHTML = ''; document.body.style.overflow = ''; render(); }
+
+function startStop(){
+  stopDraft = {feel:null, root:null, note:''};
+  openSheet(`<h2>Dừng lại</h2><p class="small">Ba hơi thở. Không cần làm gì khác.</p>
+    <div class="breath" id="breath"></div>
+    <p class="breathtext" id="btext">Sẵn sàng…</p><p class="count" id="bcount">Hơi thở 1/3</p>
+    <div class="row actions" style="justify-content:center"><button class="btn ghost" data-act="skipbreath">Bỏ qua</button></div>`);
+  const ball = $('#breath'), txt = $('#btext'), cnt = $('#bcount');
+  let t = 600;
+  for (let i = 0; i < 3; i++){
+    breathTimers.push(setTimeout(() => { ball.className = 'breath in'; txt.textContent = 'Thở vào…'; cnt.textContent = 'Hơi thở '+(i+1)+'/3'; }, t)); t += 4000;
+    breathTimers.push(setTimeout(() => { ball.className = 'breath out'; txt.textContent = 'Thở ra…'; }, t)); t += 6000;
+  }
+  breathTimers.push(setTimeout(stepName, t));
+}
+function stepName(){
+  breathTimers.forEach(clearTimeout); breathTimers = [];
+  const st = STAGES[stageInfo(todayKey()).idx];
+  openSheet(`<h2>Gọi tên</h2><p class="small">${esc(st.stopTip)}</p>
+    <p style="margin:18px 0 10px;font-size:17px">Lúc này trong tôi là…</p>
+    <div class="chips" style="justify-content:flex-start">${FEELS.map(f => '<button class="chip" data-act="feel" data-v="'+esc(f)+'">'+esc(f)+'</button>').join('')}</div>`);
+}
+function stepRoot(){
+  openSheet(`<h2>Tìm gốc</h2><p class="small">Đây là <b>${esc(stopDraft.feel.toLowerCase())}</b>. Gốc của nó có thể là gì?</p>
+    <div class="chips" style="justify-content:flex-start;margin-top:16px">${ROOTS.map(r => '<button class="chip" data-act="root" data-v="'+esc(r)+'" aria-pressed="false">'+esc(r)+'</button>').join('')}</div>
+    <div class="qfield"><label for="stopnote">Ghi thêm một dòng (không bắt buộc)</label><textarea id="stopnote" placeholder="Chuyện gì vừa xảy ra?"></textarea></div>
+    <div class="row actions"><button class="btn primary" data-act="savestop">Ghi lại</button></div>`);
+}
+function saveStop(){
+  const k = todayKey(), d = ensureDay(k);
+  const note = ($('#stopnote') && $('#stopnote').value.trim()) || '';
+  d.stops.push({t:hhmm(), feel:stopDraft.feel, root:stopDraft.root || (stopDraft.feel==='Bình an' ? '—' : 'Chưa thấy rõ'), note});
+  const slot = [2,3,4].find(i => !d.lines[i]);
+  if (slot !== undefined) d.lines[slot] = 1;
+  persistDay(k);
+  const msg = stopDraft.feel === 'Bình an' ? 'Ghi nhận một khoảnh khắc an.' : 'Đã thấy nó. Thấy được là bắt đầu chuyển hóa.';
+  openSheet(`<h2>Đã ghi lại</h2><p style="font-size:17px;margin-top:8px">${msg}</p>
+    ${slot !== undefined ? '<p class="small" style="margin-top:8px">Hào '+POS[slot]+' đã thành hào dương.</p>' : ''}
+    <div class="row actions"><button class="btn primary" data-act="close">Trở về</button></div>`);
+}
+function openEvening(){
+  const d = getDay(todayKey()), j = (d && d.journal) || {};
+  openSheet(`<h2>Tỉnh thân</h2><p class="small">Mười lăm phút nhìn lại ngày. Viết ngắn thôi, ba đến năm dòng là đủ.</p>
+    ${JQ.map(([id,q]) => '<div class="qfield"><label for="j-'+id+'">'+esc(q)+'</label><textarea id="j-'+id+'">'+esc(j[id]||'')+'</textarea></div>').join('')}
+    <div class="row actions"><button class="btn primary" data-act="saveevening">Lưu tỉnh thân</button></div>`);
+}
+function saveEvening(){
+  const k = todayKey(), d = ensureDay(k), j = {};
+  JQ.forEach(([id]) => { const v = $('#j-'+id).value.trim(); if (v) j[id] = v; });
+  d.journal = Object.keys(j).length ? j : null;
+  if (d.journal) d.lines[5] = 1;
+  persistDay(k);
+  closeSheet(); toast(d.journal ? 'Đã lưu. Hào Thượng đã thành hào dương.' : 'Chưa có gì để lưu.');
+}
+
+/* ---------- Meditation timer & bell ---------- */
+let AC = null;
+function audio(){ try{ AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume(); }catch(e){ AC = null; } }
+function bell(){
+  if (!AC) return;
+  try{
+    const t = AC.currentTime, out = AC.createGain(); out.gain.value = 0.32; out.connect(AC.destination);
+    [[196,1,7],[392.6,.55,5],[588,.32,4],[882,.18,3],[1175,.08,2]].forEach(([f,a,dur]) => {
+      const o = AC.createOscillator(), g = AC.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(a, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(out); o.start(t); o.stop(t + dur + 0.1);
+    });
+  }catch(e){}
+}
+async function keepAwake(on){
+  try{
+    if (on && 'wakeLock' in navigator){ T.lock = await navigator.wakeLock.request('screen'); }
+    else if (!on && T.lock){ await T.lock.release(); T.lock = null; }
+  }catch(e){ T.lock = null; }
+}
+function tick(){
+  const rem = remaining();
+  const c = $('#clock'); if (c) c.textContent = fmtClock(rem);
+  const r = $('#ringp'); if (r){ const C = 2*Math.PI*90; r.setAttribute('stroke-dashoffset', (C - C*(rem/T.dur)).toFixed(2)); }
+  if (T.running && rem <= 0) finishSit();
+}
+function toggleSit(){
+  audio();
+  if (T.running){ T.left = remaining(); T.running = false; clearInterval(T.h); keepAwake(false); }
+  else { const fresh = T.left == null; T.endAt = Date.now() + (T.left ?? T.dur)*1000; T.running = true; T.left = null; T.h = setInterval(tick, 250); keepAwake(true); if (fresh) bell(); }
+  render();
+}
+function resetSit(){ clearInterval(T.h); T.running = false; T.left = null; keepAwake(false); render(); }
+function finishSit(){
+  clearInterval(T.h); T.running = false; T.left = null; keepAwake(false); bell();
+  const k = todayKey(), d = ensureDay(k);
+  d.sit = (d.sit||0) + Math.round(T.dur/60); d.lines[0] = 1; persistDay(k);
+  toast('Xong. Hào Sơ đã thành hào dương.');
+  render();
+}
+
+/* ---------- Copy journal ---------- */
+function journalText(){
+  const keys = Object.keys(S.days).filter(k => hasContent(S.days[k])).sort().reverse().slice(0,30);
+  return keys.map(k => {
+    const d = S.days[k], hx = hexOf(d.lines);
+    let s = '## '+shortDate(k)+' · '+hx.name+' ('+d.lines.reduce((a,b)=>a+b,0)+'/6)\n';
+    if (d.sit) s += 'Ngồi yên: '+d.sit+' phút\n';
+    d.stops.forEach(x => { s += '- Dừng lại '+x.t+': '+x.feel+(x.root && x.root!=='—' ? ' ← '+x.root : '')+(x.note ? '. '+x.note : '')+'\n'; });
+    if (d.journal) JQ.forEach(([id,q]) => { if (d.journal[id]) s += '- '+q+' '+d.journal[id]+'\n'; });
+    return s;
+  }).join('\n');
+}
+async function copyJournal(){
+  const text = journalText();
+  try{ await navigator.clipboard.writeText(text); toast('Đã chép. Dán vào project Kinh Dịch trên Claude.'); }
+  catch(e){
+    $('#copyslot').innerHTML = '<p class="small">Không chép tự động được. Hãy chọn toàn bộ đoạn dưới đây và chép tay:</p><textarea class="copybox" id="copybox" readonly></textarea>';
+    const b = $('#copybox'); b.value = text; b.focus(); b.select();
+  }
+}
+
+async function copyBackup(){
+  await writeNow();
+  const text = JSON.stringify(S);
+  try{ await navigator.clipboard.writeText(text); toast('Đã chép bản sao lưu.'); }
+  catch(e){
+    $('#backupslot').innerHTML = '<p class="small" style="margin-top:10px">Không chép tự động được. Hãy chọn toàn bộ đoạn dưới đây và chép tay:</p><textarea class="copybox" id="backupbox" readonly></textarea>';
+    const b = $('#backupbox'); b.value = text; b.focus(); b.select();
+  }
+}
+
+/* ---------- Router & events ---------- */
+const VIEWS = {'hom-nay':viewToday, 'thien':viewSit, 'nhat-ky':viewJournal, 'lo-trinh':viewPath};
+function current(){ const h = location.hash.slice(1); return VIEWS[h] ? h : 'hom-nay'; }
+function render(){
+  const v = current();
+  $('#view').innerHTML = VIEWS[v]();
+  document.querySelectorAll('nav.tabs a').forEach(a => { if (a.dataset.tab === v) a.setAttribute('aria-current','page'); else a.removeAttribute('aria-current'); });
+}
+window.addEventListener('hashchange', () => { render(); window.scrollTo(0,0); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && saveT) writeNow(); if (!document.hidden){ if (T.running) tick(); if (!$('#sheet').classList.contains('open')) render(); } });
+
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const act = el.dataset.act, k = todayKey();
+  switch (act){
+    case 'line': {
+      const i = +el.dataset.i, d = ensureDay(k);
+      d.lines[i] = d.lines[i] ? 0 : 1;
+      if (i === 1) d.carry = !!d.lines[1];
+      persistDay(k); render();
+      const b = document.querySelector('.line[data-i="'+i+'"]'); if (b && d.lines[i]) b.classList.add('pop');
+      break; }
+    case 'carry': { const d = ensureDay(k); d.carry = !d.carry; d.lines[1] = d.carry ? 1 : 0; persistDay(k); render(); if (d.carry) toast('Hào Nhị đã thành hào dương.'); break; }
+    case 'stop': audio(); startStop(); break;
+    case 'skipbreath': stepName(); break;
+    case 'feel': stopDraft.feel = el.dataset.v; if (stopDraft.feel === 'Bình an') saveStopPeace(); else stepRoot(); break;
+    case 'root': document.querySelectorAll('[data-act="root"]').forEach(b => b.setAttribute('aria-pressed', b === el)); stopDraft.root = el.dataset.v; break;
+    case 'savestop': saveStop(); break;
+    case 'evening': openEvening(); break;
+    case 'saveevening': saveEvening(); break;
+    case 'close': closeSheet(); break;
+    case 'dur': { const m = +el.dataset.m; T.dur = m*60; T.left = null; S.settings.sitMin = m; persistSettings(); render(); break; }
+    case 'sit': toggleSit(); break;
+    case 'sitreset': resetSit(); break;
+    case 'copy': copyJournal(); break;
+    case 'rem-apply': el.disabled = true; applyReminders().then(() => { render(); toast(remStatus); }); break;
+    case 'rem-off': disableReminders().then(() => { render(); toast(remStatus); }); break;
+    case 'backup': copyBackup(); break;
+    case 'restore-open': $('#backupslot').innerHTML = '<div class="qfield"><label for="restorebox">Dán bản sao lưu vào đây</label><textarea id="restorebox" class="copybox"></textarea></div><div class="row actions"><button class="btn primary" data-act="restore">Khôi phục dữ liệu</button></div><p class="small" style="margin-top:8px">Dữ liệu hiện có trên máy sẽ được thay bằng bản sao lưu.</p>'; break;
+    case 'restore': {
+      const v = ($('#restorebox').value || '').trim();
+      try{ applyRaw(v); fixSettings(); writeNow(); render(); toast('Đã khôi phục dữ liệu.'); }
+      catch(e){ toast('Bản sao lưu không đúng định dạng. Hãy dán lại toàn bộ.'); }
+      break; }
+  }
+});
+function saveStopPeace(){
+  openSheet(`<h2>Bình an</h2><p class="small">Ghi nhận khoảnh khắc này. Nếu muốn, viết một dòng về điều đang nuôi sự an ấy.</p>
+    <div class="qfield"><label for="stopnote">Ghi thêm (không bắt buộc)</label><textarea id="stopnote"></textarea></div>
+    <div class="row actions"><button class="btn primary" data-act="savestop">Ghi lại</button></div>`);
+}
+document.addEventListener('change', e => {
+  const el = e.target;
+  if (el.dataset && el.dataset.act === 'read'){ S.settings.reads[el.dataset.id] = el.checked; persistSettings(); }
+  if (el.dataset && el.dataset.act === 'rem-on'){ const r = S.settings.reminders.find(x => x.id === +el.dataset.id); if (r){ r.on = el.checked; persistSettings(); } }
+  if (el.dataset && el.dataset.act === 'rem-time' && el.value){ const r = S.settings.reminders.find(x => x.id === +el.dataset.id); if (r){ r.time = el.value; persistSettings(); } }
+  if (el.id === 'start' && el.value){ S.settings.start = el.value; persistSettings(); render(); toast('Đã đổi ngày bắt đầu.'); }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#sheet').classList.contains('open')) closeSheet(); });
+
+(async () => {
+  await loadState();
+  T.dur = (S.settings.sitMin || 10) * 60;
+  render();
+  writeNow();
+  listenNotifications();
+})();
+</script>
+</body>
+</html>

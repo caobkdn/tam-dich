@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Notification icon: hexagram Trung Phu (inner sincerity), white on transparent -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M4,3.5h16v2.2h-16z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M4,6.9h16v2.2h-16z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M4,10.3h6.6v2.2h-6.6zM13.4,10.3h6.6v2.2h-6.6z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M4,13.7h6.6v2.2h-6.6zM13.4,13.7h6.6v2.2h-6.6z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M4,17.1h16v2.2h-16z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M4,20.5h16v2.2h-16z" android:strokeWidth="0"/>
+</vector>

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Tâm Dịch</string>
+    <string name="title_activity_main">Tâm Dịch</string>
+    <string name="package_name">vn.tamdich.app</string>
+    <string name="custom_url_scheme">vn.tamdich.app</string>
+</resources>

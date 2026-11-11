@@ -1,0 +1,20 @@
+{
+  "name": "tam-dich",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tâm Dịch – sổ tu tập hằng ngày",
+  "scripts": {
+    "build": "node scripts/prepare.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "7.6.9",
+    "@capacitor/core": "7.6.9",
+    "@capacitor/local-notifications": "7.0.7",
+    "@capacitor/preferences": "7.0.4"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "7.6.9",
+    "@fontsource/be-vietnam-pro": "5.3.0",
+    "@fontsource/cormorant-garamond": "5.3.0"
+  }
+}

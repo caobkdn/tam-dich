@@ -1,0 +1,54 @@
+name: Đóng gói APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Cài thư viện
+        run: npm ci
+
+      - name: Chuẩn bị giao diện (font, thư viện)
+        run: npm run build
+
+      - name: Đồng bộ vào dự án Android
+        run: npx cap sync android
+
+      - name: Đóng gói APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Đặt tên file
+        run: cp android/app/build/outputs/apk/release/app-release.apk TamDich.apk
+
+      - name: Đăng lên mục Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Tâm Dịch 1.0.${{ github.run_number }}
+          body: |
+            Tải file **TamDich.apk** bên dưới về điện thoại Android rồi mở để cài.
+            Bản mới cài đè lên bản cũ, nhật ký vẫn giữ nguyên.
+          files: TamDich.apk
+          make_latest: true
